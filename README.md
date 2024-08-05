@@ -9,6 +9,8 @@ A web-based dashboard that pings added web addresses or hostnames in real-time a
 - Real-time ping monitoring for added hosts with status, RTT (Round Trip Time), and packet loss percentage.
 - Add and remove hosts for monitoring.
 
+![Ping Dashboard Screenshot](https://raw.githubusercontent.com/aniksarakash/Autopings/main/preview.png)
+
 ## Technologies Used
 
 - Flask (Python)
