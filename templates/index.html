@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ping Dashboard</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/UAParser.js/0.7.31/ua-parser.min.js"></script>
+</head>
+<body>
+    <div class="container mt-5">
+        <h1>Ping Dashboard</h1>
+        <!-- IP and Browser Info Widget -->
+        <div class="card mb-4">
+            <div class="card-header">Your Information</div>
+            <div class="card-body">
+                <p><strong>IP Address (IPv4):</strong> <span id="ip4">Loading...</span></p>
+                <p><strong>IP Address (IPv6):</strong> <span id="ip6">Loading...</span></p>
+                <p><strong>Country:</strong> <span id="country">Loading...</span></p>
+                <p><strong>Browser:</strong> <span id="browser">Loading...</span></p>
+                <p><strong>Operating System:</strong> <span id="os">Loading...</span></p>
+            </div>
+        </div>
+        <form id="add-host-form" class="form-inline mb-3">
+            <input type="text" id="host-address" class="form-control mr-2" placeholder="Enter host address">
+            <button type="submit" class="btn btn-primary">Add Host</button>
+        </form>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Address</th>
+                    <th>Status</th>
+                    <th>RTT (ms)</th>
+                    <th>Packet Loss (%)</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody id="host-list">
+            </tbody>
+        </table>
+    </div>
+    <script>
+        $(document).ready(function() {
+            // Fetch IPv4 address and location information from the server
+            $.get("/get_ip_info", function(response) {
+                console.log("IPInfo response:", response);  // Debugging information
+                $('#ip4').text(response.ip);
+                $('#country').text(response.country);
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                console.error("IPInfo failed:", textStatus, errorThrown);  // Debugging information
+                $('#ip4').text('Failed to load');
+                $('#country').text('Failed to load');
+            });
+
+            // Fetch IPv6 information from the server
+            $.get("/get_ipv6_info", function(response) {
+                console.log("IPify IPv6 response:", response);  // Debugging information
+                $('#ip6').text(response.ip);
+            }).fail(function(jqXHR, textStatus, errorThrown) {
+                console.error("IPify IPv6 failed:", textStatus, errorThrown);  // Debugging information
+                $('#ip6').text('Failed to load');
+            });
+
+            // Fetch browser and OS information
+            var parser = new UAParser();
+            var result = parser.getResult();
+            console.log("UAParser result:", result);  // Debugging information
+            $('#browser').text(result.browser.name + ' ' + result.browser.version);
+            $('#os').text(result.os.name + ' ' + result.os.version);
+
+            var socket = io.connect('http://' + document.domain + ':' + location.port);
+            socket.on('update_host', function(data) {
+                var row = $('#host-' + data.address.replace(/\./g, '-'));
+                if (row.length) {
+                    row.find('.status').text(data.status);
+                    row.find('.rtt').text(data.rtt !== null ? data.rtt.toFixed(2) : 'N/A');
+                    row.find('.packet_loss').text(data.packet_loss !== null ? data.packet_loss.toFixed(2) : 'N/A');
+                } else {
+                    $('#host-list').append(
+                        `<tr id="host-${data.address.replace(/\./g, '-')}">
+                            <td>${data.address}</td>
+                            <td class="status">${data.status}</td>
+                            <td class="rtt">${data.rtt !== null ? data.rtt.toFixed(2) : 'N/A'}</td>
+                            <td class="packet_loss">${data.packet_loss !== null ? data.packet_loss.toFixed(2) : 'N/A'}</td>
+                            <td><button class="btn btn-danger btn-sm remove-host" data-address="${data.address}">Remove</button></td>
+                        </tr>`
+                    );
+                }
+            });
+
+            $('#add-host-form').submit(function(e) {
+                e.preventDefault();
+                var address = $('#host-address').val();
+                $.post('/add_host', { address: address }, function(data) {
+                    $('#host-list').append(
+                        `<tr id="host-${data.address.replace(/\./g, '-')}">
+                            <td>${data.address}</td>
+                            <td class="status">${data.status}</td>
+                            <td class="rtt">${data.rtt !== null ? data.rtt.toFixed(2) : 'N/A'}</td>
+                            <td class="packet_loss">${data.packet_loss !== null ? data.packet_loss.toFixed(2) : 'N/A'}</td>
+                            <td><button class="btn btn-danger btn-sm remove-host" data-address="${data.address}">Remove</button></td>
+                        </tr>`
+                    );
+                });
+            });
+
+            $(document).on('click', '.remove-host', function() {
+                var address = $(this).data('address');
+                $.post('/remove_host', { address: address }, function() {
+                    $(`#host-${address.replace(/\./g, '-')}`).remove();
+                });
+            });
+        });
+    </script>
+</body>
+</html>
